@@ -6,10 +6,14 @@
 all: build
 
 build:
-	$(MAKE) -C tls_between_non_enclave_enclave
-
+	$(MAKE) -C server
+	$(MAKE) -C non_enc_client
 clean:
-	$(MAKE) -C tls_between_non_enclave_enclave clean
+	$(MAKE) -C server clean
+	$(MAKE) -C non_enc_client clean
+
 
 run:
-	$(MAKE) -C tls_between_non_enclave_enclave run
+	./server/host/tls_server_host ./server/enc/tls_server_enc.signed -port:12341 &
+	sleep 2
+	./non_enc_client/tls_client -server:localhost -port:12341

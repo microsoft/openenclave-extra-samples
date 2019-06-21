@@ -29,12 +29,6 @@ extern "C"
 char error_buf[MAX_ERROR_BUFF_SIZE];
 unsigned char buf[1024];
 
-int cert_verify_callback(
-    void* data,
-    mbedtls_x509_crt* crt,
-    int depth,
-    uint32_t* flags);
-
 // mbedtls debug levels
 // 0 No debug, 1 Error, 2 State change, 3 Informational, 4 Verbose
 #define DEBUG_LEVEL 1
@@ -97,9 +91,7 @@ int configure_server_ssl(
     mbedtls_ssl_conf_session_cache(
         conf, cache, mbedtls_ssl_cache_get, mbedtls_ssl_cache_set);
 
-    // need to set authmode mode to OPTIONAL for requesting client certificate
-    mbedtls_ssl_conf_authmode(conf, MBEDTLS_SSL_VERIFY_OPTIONAL);
-    mbedtls_ssl_conf_verify(conf, cert_verify_callback, NULL);
+    mbedtls_ssl_conf_authmode(conf, MBEDTLS_SSL_VERIFY_NONE);
     mbedtls_ssl_conf_ca_chain(conf, server_cert->next, NULL);
 
     if ((ret = mbedtls_ssl_conf_own_cert(conf, server_cert, pkey)) != 0)
