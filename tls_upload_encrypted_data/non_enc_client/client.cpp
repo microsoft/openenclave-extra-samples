@@ -100,7 +100,7 @@ int write_key_request(SSL* ssl)
 {
     protocol_header hdr;
 
-    printf(TLS_CLIENT "Write to server-->:\n\n");
+    printf(TLS_CLIENT " PROTOCOL: Writing key request to server.\n");
     hdr.cmd = GETKEY;
     hdr.payload_size = 0;
 
@@ -110,7 +110,6 @@ int write_key_request(SSL* ssl)
         return -1;
     }
 
-    printf(TLS_CLIENT "\n\n%zu bytes written\n\n", sizeof(hdr));
     return 0;
 }
 
@@ -118,7 +117,6 @@ int read_key(SSL* ssl, unsigned char* buf)
 {
     protocol_header hdr;
 
-    printf(TLS_CLIENT "\n\n<-- Read from server:\n");
     if (ssl_read_all(ssl, (unsigned char*)&hdr, sizeof(hdr)) != 0)
     {
         printf(TLS_CLIENT "Failed! ssl_read_all returned an error.\n");
@@ -131,6 +129,7 @@ int read_key(SSL* ssl, unsigned char* buf)
         return -1;
     }
 
+    printf(TLS_CLIENT " PROTOCOL: Got public key from server:\n%s\n", (const char* ) buf);
     return 0;
 }
 
@@ -316,12 +315,18 @@ int write_payload_data(
     memcpy(buffer + sizeof(hdr), &phdr, sizeof(phdr));
     memcpy(buffer + sizeof(hdr) + sizeof(phdr), out, phdr.data_size);
 
-    printf(TLS_CLIENT "PAYLOAD DATA IS:\n");
-    for (size_t i = 0; i < sizeof(hdr) + sizeof(phdr) + phdr.data_size; i++)
+    printf(TLS_CLIENT " PROTOCOL: Sending encrypted key and data to server:\n");
+    printf("  Key value is:\n    ");
+    for (size_t i = 0; i < sizeof(phdr.key); i++)
     {
-        printf("%x ", buffer[i]);
+        printf("%02x ", phdr.key[i]);
+        if ((i+1) % 32 == 0)
+            printf("\n    ");
     }
-    printf("\n");
+    printf("\n  Data value is:\n    ");
+    for (size_t i = 0; i < outlen; i++)
+        printf("%02x ", out[i]);
+    printf("\n\n");
 
     return ssl_write_all(
         ssl, buffer, sizeof(hdr) + sizeof(phdr) + phdr.data_size);
@@ -339,22 +344,20 @@ int send_encrypted_data(SSL* ssl, const char* pem)
     protocol_header hdr;
     int ret = -1;
 
-    printf(TLS_CLIENT "Generating IV and AES key.\n");
-
     // Generate a random AES key
     RAND_bytes(key, sizeof(key));
-    printf(TLS_CLIENT "DUMPING AES KEY.\n");
+    printf(TLS_CLIENT " PROTOCOL: Generating AES key. Value is:\n");
     for (size_t i = 0; i < sizeof(key); i++)
     {
-        printf("%d ", key[i]);
+        printf("%02x ", key[i]);
     }
-    printf("\n");
+    printf("\n\n");
 
     // Generate the initialization vector for AES-CBC
     RAND_bytes(iv, sizeof(iv));
 
     // Encrypt the data.
-    printf(TLS_CLIENT "Encrypting secret message: %s\n", secret_msg);
+    printf(TLS_CLIENT " PROTOCOL: Encrypting secret message, which is:\n%s\n\n", secret_msg);
     ret = encrypt_data(
         key,
         iv,
@@ -369,7 +372,6 @@ int send_encrypted_data(SSL* ssl, const char* pem)
     }
 
     // Load up the public key.
-    printf(TLS_CLIENT "Loading public key to openssl.\n");
     rsa = load_public_key(pem);
     if (rsa == NULL)
     {
@@ -378,7 +380,7 @@ int send_encrypted_data(SSL* ssl, const char* pem)
     }
 
     //  Encrypt the key with the public key
-    printf(TLS_CLIENT "Encrypting AES key with public key.\n");
+    printf(TLS_CLIENT " PROTOCOL: Encrypting AES key with public key.\n");
     if (encrypt_aes_key(rsa, key, sizeof(key), outkey, sizeof(outkey)) != 0)
     {
         printf(TLS_CLIENT "Failed! encrypt_aes_key had an error.\n");
@@ -386,7 +388,6 @@ int send_encrypted_data(SSL* ssl, const char* pem)
     }
 
     // Send the entire message (ENCRYPTED_KEY || IV || ENCRYPTED_MESSAGE)
-    printf(TLS_CLIENT "Sending payload to server.\n");
     ret = write_payload_data(ssl, outkey, iv, out, outlen);
 
 done:
@@ -413,6 +414,7 @@ int communicate_with_server(SSL* ssl)
     int ret = 1;
 
     // Step 1: Write public key request.
+    printf("\n" TLS_CLIENT "\n====== PROTOCOL START =====.\n\n");
     ret = write_key_request(ssl);
     if (ret != 0)
     {
@@ -427,8 +429,6 @@ int communicate_with_server(SSL* ssl)
         printf(TLS_CLIENT "Failed! read_key returned an error.\n");
         goto done;
     }
-
-    printf("Printing out the public key: \n%s\n", buf);
 
     // Step 3: Client sends the encrypted key and the encrypted data.
     ret = send_encrypted_data(ssl, (const char*)buf);

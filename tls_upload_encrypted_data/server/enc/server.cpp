@@ -220,16 +220,15 @@ int handle_get_key(mbedtls_ssl_context* ssl, mbedtls_rsa_context* rsa)
     protocol_header hdr;
 
     // Read the GETKEY request from the client.
-    printf(TLS_SERVER "<---- Read from client:\n");
+    printf(TLS_SERVER " PROTOCOL: Waiting for client key request.\n");
     if (ssl_read_all(ssl, (unsigned char*)&hdr, sizeof(hdr)) != 0)
     {
         printf(TLS_SERVER "ssl_read_all failed!\n");
         return -1;
     }
-    printf(TLS_SERVER "<---- read GETKEY request from client\n");
 
     // Generate the RSA public/private key pair.
-    printf(TLS_SERVER "Generating public/private key pair.\n");
+    printf(TLS_SERVER " PROTOCOL: Got key request. Generating key pair.\n");
     mbedtls_rsa_init(rsa, MBEDTLS_RSA_PKCS_V15, 0);
     if (generate_keypair(rsa) != 0)
     {
@@ -275,6 +274,9 @@ int write_key(mbedtls_ssl_context* ssl, mbedtls_rsa_context* rsa)
     memcpy(send_buf, &hdr, sizeof(hdr));
 
     // Now, we just write the buffer to the client.
+    printf(
+        TLS_SERVER " PROTOCOL: Sending public key. Value of public key is:\n%s\n",
+        (const char*) send_buf + sizeof(hdr));
     if (ssl_write_all(ssl, send_buf, sizeof(hdr) + hdr.payload_size) != 0)
     {
         printf(TLS_SERVER "ERROR: failed to ssl_write_all.\n");
@@ -364,7 +366,7 @@ int decrypt_data(
     // padding.
     output[sizeof(output) - output[sizeof(output) - 1]] = 0;
 
-    printf(TLS_SERVER "Decrypted secret data = %s\n", (const char*)output);
+    printf(TLS_SERVER " PROTOCOL: Decrypted secret data:\n%s\n\n", (const char*)output);
     ret = 0;
 
 done:
@@ -394,33 +396,28 @@ int read_payload(mbedtls_ssl_context* ssl, mbedtls_rsa_context* rsa)
         goto done;
     }
 
-    printf(
-        TLS_SERVER "read_payload: got sizes %zu %zu\n",
-        hdr.payload_size,
-        phdr.data_size);
     if (ssl_read_all(ssl, payload, phdr.data_size) != 0)
     {
         printf(TLS_SERVER "ERROR: failed to ssl_read_all.\n");
         goto done;
     }
 
-    printf(TLS_SERVER "CLIENT SENT PAYLOAD DATA =\n");
-    for (size_t i = 0; i < sizeof(hdr); i++)
+    printf(TLS_SERVER " PROTOCOL: Got client key and data:\n");
+    printf("  Key is:\n    ");
+    for (size_t i = 0; i < sizeof(phdr.key); i++)
     {
-        printf("%x ", *((unsigned char*)&hdr + i));
+        printf("%02x ", phdr.key[i]);
+        if ((i + 1) % 32 == 0)
+            printf("\n    ");
     }
-    for (size_t i = 0; i < sizeof(phdr); i++)
-    {
-        printf("%x ", *((unsigned char*)&phdr + i));
-    }
+    printf("\n  Data is:\n    ");
     for (size_t i = 0; i < phdr.data_size; i++)
     {
-        printf("%x ", payload[i]);
+        printf("%02x ", payload[i]);
     }
-    printf("\n");
+    printf("\n\n");
 
     // Decrypt the key using the rsa private key.
-    printf(TLS_SERVER "now decrypting the AES key.\n");
     ret = decrypt_key(rsa, phdr.key, output, &outlen);
     if (ret != 0)
     {
@@ -428,13 +425,12 @@ int read_payload(mbedtls_ssl_context* ssl, mbedtls_rsa_context* rsa)
         goto done;
     }
 
-    printf(TLS_SERVER "DUMPING AES KEY.\n");
+    printf(TLS_SERVER " PROTOCOL: Decrypted AES key with private key. AES key is:\n");
     for (size_t i = 0; i < outlen; i++)
-        printf("%d ", output[i]);
-    printf("\n");
+        printf("%02x ", output[i]);
+    printf("\n\n");
 
     // Decrypt the payload data with the key and IV.
-    printf(TLS_SERVER "now decrypting payload with AES key.\n");
     ret = decrypt_data(output, outlen, phdr.iv, payload, phdr.data_size);
 
 done:
