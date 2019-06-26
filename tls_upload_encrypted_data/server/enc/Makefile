@@ -23,8 +23,15 @@ LDFLAGS=$(shell pkg-config oeenclave-$(CXX_COMPILER) --libs)
 .PHONY: all build clean run
 
 all:
+	$(MAKE) genkey
 	$(MAKE) build
 	$(MAKE) sign
+
+# The client in the sample will need to know the enclave's public key, so
+# we produce a C header to make it easy to load.
+genkey: public.pem
+	chmod u+x ../../scripts/gen_pubkey_header.sh
+	../../scripts/gen_pubkey_header.sh ../../common/tls_server_enc_pubkey.h $<
 
 build:
 	@ echo "Compilers used: $(CC), $(CXX)"
@@ -37,4 +44,4 @@ sign:
 	oesign sign -e tls_server_enc -c enc.conf -k private.pem
 
 clean:
-	rm -f *.o tls_server_enc tls_server_enc.signed tls_server_enc.signed.so tls_server_t.* tls_server_args.h
+	rm -f *.o tls_server_enc tls_server_enc.signed tls_server_enc.signed.so tls_server_t.* tls_server_args.h ../../common/tls_server_enc_pubkey.h
