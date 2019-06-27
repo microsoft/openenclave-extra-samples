@@ -1,0 +1,124 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License.
+
+#ifndef OE_SAMPLES_ATTESTATION_ENC_CRYPTO_H
+#define OE_SAMPLES_ATTESTATION_ENC_CRYPTO_H
+
+#include <openenclave/enclave.h>
+// Includes for mbedtls shipped with oe.
+// Also add the following libraries to your linker command line:
+// -loeenclave -lmbedcrypto -lmbedtls -lmbedx509
+#include "log.h"
+#include <mbedtls/config.h>
+#include <mbedtls/ctr_drbg.h>
+#include <mbedtls/entropy.h>
+#include <mbedtls/pk.h>
+#include <mbedtls/rsa.h>
+#include <mbedtls/sha256.h>
+
+#define PUBLIC_KEY_SIZE 512
+#define TAG_SIZE 16
+#define IV_SIZE 12
+#define ADD_SIZE 4
+#define SIGNATURE_SIZE 256
+#define ENCRYPTED_KEY_SIZE 256
+#define DIGEST_SIZE 32
+
+class Crypto {
+private:
+  mbedtls_ctr_drbg_context m_ctr_drbg_contex;
+  mbedtls_entropy_context m_entropy_context;
+  mbedtls_pk_context m_pk_context;
+  uint8_t m_public_key[512];
+  bool m_initialized;
+
+  // Public key of another enclave.
+  uint8_t m_other_enclave_pubkey[PUBLIC_KEY_SIZE];
+
+public:
+  Crypto();
+  ~Crypto();
+
+  /**
+   * Get this enclave's own public key
+   */
+  void retrieve_public_key(uint8_t pem_public_key[512]);
+
+  /**
+   * Encrypt encrypts the given data using the given public key.
+   * Used to encrypt data using the public key of another enclave.
+   */
+  bool encrypt(const uint8_t *pem_public_key, const uint8_t *data, size_t size,
+               uint8_t *encrypted_data, size_t *encrypted_data_size);
+
+  /**
+   * Decrypt decrypts the given data using current enclave's private key.
+   * Used to receive encrypted data from another enclave.
+   */
+  bool decrypt(const uint8_t *encrypted_data, size_t encrypted_data_size,
+               uint8_t *data, size_t *data_size);
+
+  /**
+   * get_rsa_modulus_from_pem returns the RSA modulus in big endian format
+   * from the public key PEM data. This is needed to verify the MRSIGNER
+   * of the other enclave, which ensures that the other enclave has been
+   * signed by the right key. MRSIGNER is the SHA256 hash of the modulus
+   * in little endian.
+   */
+  bool get_rsa_modulus_from_pem(const char *pem_data, size_t pem_size,
+                                uint8_t **modulus, size_t *modulus_size);
+
+  // Public key of another enclave.
+  uint8_t *get_the_other_enclave_public_key() { return m_other_enclave_pubkey; }
+
+  /**
+   * Compute the sha256 hash of given data.
+   */
+  int sha256(const uint8_t *data, size_t data_size, uint8_t sha256[32]);
+
+  /**
+   * encrypt_gcm encrypts the given data using the given symmetric key.
+   */
+  bool encrypt_gcm(const uint8_t *sym_key, uint32_t sequence_num,
+                   const uint8_t *data, size_t data_size, uint8_t *iv_str,
+                   uint8_t *encrypted_data, size_t *encrypted_data_size,
+                   uint8_t *tag_output);
+
+  /**
+   * decrypt_gcm decrypts the given data using the given symmetric key.
+   * Used to receive encrypted data from another enclave.
+   */
+  bool decrypt_gcm(const uint8_t *sym_key, const uint8_t *iv_str,
+                   const uint8_t *add_str, const uint8_t *encrypted_data,
+                   size_t encrypted_data_size, const uint8_t *tag_output,
+                   uint8_t *data, size_t *data_size);
+
+  /**
+   * Sign the SHA256 hash with enclave's private key
+   */
+  int sign(const unsigned char *hash_data, size_t hash_size, unsigned char *sig,
+           size_t *sig_len);
+
+  /**
+   * Verify the signature using public key of other enclave
+   */
+  int verify_sign(const uint8_t *pem_public_key, const unsigned char *hash_data,
+                  size_t hash_size, const unsigned char *sig, size_t sig_len);
+
+private:
+  /**
+   * Crypto demonstrates use of mbedtls within the enclave to generate keys
+   * and perform encryption. In this sample, each enclave instance generates
+   * an ephemeral 2048-bit RSA key pair and shares the public key with the
+   * other instance. The other enclave instance then replies with data
+   * encrypted to the provided public key.
+   */
+
+  /** init_mbedtls initializes the crypto module.
+   */
+  bool init_mbedtls(void);
+
+  void cleanup_mbedtls(void);
+};
+
+#endif // OE_SAMPLES_ATTESTATION_ENC_CRYPTO_H
