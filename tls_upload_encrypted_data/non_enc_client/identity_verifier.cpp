@@ -8,7 +8,7 @@
 #include <string.h>
 #include <sys/socket.h>
 
-#include <openenclave/host.h>
+#include <openenclave/host_verify.h>
 #include <openssl/bio.h>
 #include <openssl/err.h>
 #include <openssl/x509_vfy.h>

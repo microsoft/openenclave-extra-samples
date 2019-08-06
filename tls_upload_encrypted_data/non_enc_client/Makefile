@@ -21,9 +21,9 @@ ifeq ($(USE_GCC),)
         CXX_COMPILER=clang++
 endif
 
-CFLAGS=$(shell pkg-config oehost-$(C_COMPILER) --cflags)
-CXXFLAGS=$(shell pkg-config oehost-$(CXX_COMPILER) --cflags)
-LDFLAGS=$(shell pkg-config oehost-$(CXX_COMPILER) --libs)
+CFLAGS=$(shell pkg-config oehostverify-$(C_COMPILER) --cflags)
+CXXFLAGS=$(shell pkg-config oehostverify-$(CXX_COMPILER) --cflags)
+LDFLAGS=$(shell pkg-config oehostverify-$(CXX_COMPILER) --libs)
 
 all: build
 

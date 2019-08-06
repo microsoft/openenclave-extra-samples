@@ -6,10 +6,10 @@
 all: build
 
 build:
-	$(MAKE) -C server
+#	$(MAKE) -C server
 	$(MAKE) -C non_enc_client
 clean:
-	$(MAKE) -C server clean
+#	$(MAKE) -C server clean
 	$(MAKE) -C non_enc_client clean
 
 
