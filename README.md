@@ -1,6 +1,8 @@
 Extra Samples for the Open Enclave SDK
 ======================================
 
+> ## Note: This respository has been archived and is not actively maintained.
+
 Sandbox repo for extra or experimental samples.
 
 Contributing
